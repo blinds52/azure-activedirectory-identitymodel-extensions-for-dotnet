@@ -83,6 +83,16 @@ namespace System.IdentityModel.Tokens.Jwt
         public static IDictionary<string, string> DefaultOutboundAlgorithmMap;
 
         /// <summary>
+        /// Default value for mapping claim types to long types
+        /// </summary>
+        [DefaultValue(true)]
+        public static bool DefaultMapClaimTypes
+        {
+            get;
+            set;
+        } = true;
+
+        /// <summary>
         /// Static initializer for a new object. Static initializers run before the first instance of the type is created.
         /// </summary>
         static JwtSecurityTokenHandler()
@@ -111,6 +121,16 @@ namespace System.IdentityModel.Tokens.Jwt
             _outboundClaimTypeMap = new Dictionary<string, string>(DefaultOutboundClaimTypeMap);
             _inboundClaimFilter = new HashSet<string>(DefaultInboundClaimFilter);
             _outboundAlgorithmMap = new Dictionary<string, string>(DefaultOutboundAlgorithmMap);
+            MapClaimTypes = DefaultMapClaimTypes;
+        }
+
+        /// <summary>
+        /// Gets or sets a bool controlling if claim mapping is used.
+        /// </summary>
+        public bool MapClaimTypes
+        {
+            get;
+            set;
         }
 
         /// <summary>
@@ -1051,18 +1071,19 @@ namespace System.IdentityModel.Tokens.Jwt
                 actualIssuer = ClaimsIdentity.DefaultIssuer;
             }
 
-            ClaimsIdentity identity = validationParameters.CreateClaimsIdentity(jwtToken, actualIssuer);
-            foreach (Claim jwtClaim in jwtToken.Claims)
+            var identity = validationParameters.CreateClaimsIdentity(jwtToken, actualIssuer);
+            foreach (var jwtClaim in jwtToken.Claims)
             {
                 if (_inboundClaimFilter.Contains(jwtClaim.Type))
                     continue;
 
-                string claimType;
-                bool wasMapped = true;
-                if (!_inboundClaimTypeMap.TryGetValue(jwtClaim.Type, out claimType))
+                string claimType = jwtClaim.Type;
+                bool wasMapped = false;
+
+                if (MapClaimTypes && _inboundClaimTypeMap.TryGetValue(jwtClaim.Type, out string mappedClaimType))
                 {
-                    claimType = jwtClaim.Type;
-                    wasMapped = false;
+                    wasMapped = true;
+                    claimType = mappedClaimType;
                 }
 
                 if (claimType == ClaimTypes.Actor)
@@ -1077,15 +1098,13 @@ namespace System.IdentityModel.Tokens.Jwt
                     }
                 }
 
-                Claim claim = new Claim(claimType, jwtClaim.Value, jwtClaim.ValueType, actualIssuer, actualIssuer, identity);
-
+                var claim = new Claim(claimType, jwtClaim.Value, jwtClaim.ValueType, actualIssuer, actualIssuer, identity);
                 if (jwtClaim.Properties.Count > 0)
                 {
                     foreach (var kv in jwtClaim.Properties)
-                    {
                         claim.Properties[kv.Key] = kv.Value;
-                    }
                 }
+
                 if (wasMapped)
                     claim.Properties[ShortClaimTypeProperty] = jwtClaim.Type;
 
