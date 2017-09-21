@@ -27,6 +27,7 @@
 
 using Microsoft.IdentityModel.Tests;
 using Microsoft.IdentityModel.Tokens;
+using System.Security.Claims;
 
 namespace System.IdentityModel.Tokens.Jwt.Tests
 {
@@ -37,6 +38,8 @@ namespace System.IdentityModel.Tokens.Jwt.Tests
         public TokenValidationParameters ActorTokenValidationParameters { get; set; }
 
         public bool CanRead { get; set; } = true;
+
+        public ClaimsPrincipal Principal { get; set; }
 
         public SecurityToken SecurityToken { get; set; }
 

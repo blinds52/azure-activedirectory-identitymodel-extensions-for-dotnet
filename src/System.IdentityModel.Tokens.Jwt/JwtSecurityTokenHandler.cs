@@ -83,10 +83,20 @@ namespace System.IdentityModel.Tokens.Jwt
         public static IDictionary<string, string> DefaultOutboundAlgorithmMap;
 
         /// <summary>
-        /// Default value for mapping claim types to long types
+        /// Default value for inbound mapping of claim types
         /// </summary>
         [DefaultValue(true)]
-        public static bool DefaultMapClaimTypes
+        public static bool DefaultMapInboundClaimTypes
+        {
+            get;
+            set;
+        } = true;
+
+        /// <summary>
+        /// Default value for outbound mapping mapping of claim types
+        /// </summary>
+        [DefaultValue(true)]
+        public static bool DefaultMapOutboundClaimTypes
         {
             get;
             set;
@@ -121,13 +131,23 @@ namespace System.IdentityModel.Tokens.Jwt
             _outboundClaimTypeMap = new Dictionary<string, string>(DefaultOutboundClaimTypeMap);
             _inboundClaimFilter = new HashSet<string>(DefaultInboundClaimFilter);
             _outboundAlgorithmMap = new Dictionary<string, string>(DefaultOutboundAlgorithmMap);
-            MapClaimTypes = DefaultMapClaimTypes;
+            MapInboundClaimTypes = DefaultMapInboundClaimTypes;
+            MapOutboundClaimTypes = DefaultMapOutboundClaimTypes;
         }
 
         /// <summary>
         /// Gets or sets a bool controlling if claim mapping is used.
         /// </summary>
-        public bool MapClaimTypes
+        public bool MapInboundClaimTypes
+        {
+            get;
+            set;
+        }
+
+                /// <summary>
+        /// Gets or sets a bool controlling if claim mapping is used.
+        /// </summary>
+        public bool MapOutboundClaimTypes
         {
             get;
             set;
@@ -539,7 +559,7 @@ namespace System.IdentityModel.Tokens.Jwt
             }
 
             IdentityModelEventSource.Logger.WriteVerbose(LogMessages.IDX12721, (audience ?? "null"), (issuer ?? "null"));
-            JwtPayload payload = new JwtPayload(issuer, audience, (subject == null ? null : OutboundClaimTypeTransform(subject.Claims)), notBefore, expires, issuedAt);
+            JwtPayload payload = new JwtPayload(issuer, audience, (subject == null ? null : MapOutboundClaimTypes ? OutboundClaimTypeTransform(subject.Claims) : subject.Claims), notBefore, expires, issuedAt);
             JwtHeader header = signingCredentials == null ? new JwtHeader() : new JwtHeader(signingCredentials, OutboundAlgorithmMap);
 
             if (subject?.Actor != null)
@@ -659,8 +679,7 @@ namespace System.IdentityModel.Tokens.Jwt
         {
             foreach (Claim claim in claims)
             {
-                string type = null;
-                if (_outboundClaimTypeMap.TryGetValue(claim.Type, out type))
+                if (_outboundClaimTypeMap.TryGetValue(claim.Type, out string type))
                 {
                     yield return new Claim(type, claim.Value, claim.ValueType, claim.Issuer, claim.OriginalIssuer, claim.Subject);
                 }
@@ -1080,7 +1099,7 @@ namespace System.IdentityModel.Tokens.Jwt
                 string claimType = jwtClaim.Type;
                 bool wasMapped = false;
 
-                if (MapClaimTypes && _inboundClaimTypeMap.TryGetValue(jwtClaim.Type, out string mappedClaimType))
+                if (MapInboundClaimTypes && _inboundClaimTypeMap.TryGetValue(jwtClaim.Type, out string mappedClaimType))
                 {
                     wasMapped = true;
                     claimType = mappedClaimType;

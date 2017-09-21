@@ -40,7 +40,6 @@ namespace System.IdentityModel.Tokens.Jwt.Tests
     {
 #pragma warning disable CS3016 // Arrays as attribute arguments is not CLS-compliant
         [Theory, MemberData("ActorTheoryData")]
-#pragma warning restore CS3016 // Arrays as attribute arguments is not CLS-compliant
         public void Actor(JwtTheoryData theoryData)
         {
             var context = new CompareContext();
@@ -131,9 +130,7 @@ namespace System.IdentityModel.Tokens.Jwt.Tests
             }
         }
 
-#pragma warning disable CS3016 // Arrays as attribute arguments is not CLS-compliant
         [Theory, MemberData("BootstrapContextTheoryData")]
-#pragma warning restore CS3016 // Arrays as attribute arguments is not CLS-compliant
         public void BootstrapContext(JwtTheoryData theoryData)
         {
             TestUtilities.WriteHeader($"{this}.BootstrapContext", theoryData);
@@ -199,7 +196,6 @@ namespace System.IdentityModel.Tokens.Jwt.Tests
             Assert.True(header.Alg == SecurityAlgorithms.Aes128Encryption);
         }
 
-#pragma warning disable CS3016 // Arrays as attribute arguments is not CLS-compliant
         [Theory]
         [InlineData(SecurityAlgorithms.EcdsaSha256Signature, SecurityAlgorithms.EcdsaSha256)]
         [InlineData(SecurityAlgorithms.EcdsaSha384Signature, SecurityAlgorithms.EcdsaSha384)]
@@ -220,7 +216,6 @@ namespace System.IdentityModel.Tokens.Jwt.Tests
         [InlineData(SecurityAlgorithms.RsaSha384, SecurityAlgorithms.RsaSha384)]
         [InlineData(SecurityAlgorithms.RsaSha512, SecurityAlgorithms.RsaSha512)]
         [InlineData(SecurityAlgorithms.Aes128Encryption, SecurityAlgorithms.Aes128Encryption)]
-#pragma warning restore CS3016 // Arrays as attribute arguments is not CLS-compliant
         public void OutboundHeaderMappingCreateHeader(string outboundAlgorithm, string expectedValue)
         {
             var handler = new JwtSecurityTokenHandler();
@@ -232,7 +227,6 @@ namespace System.IdentityModel.Tokens.Jwt.Tests
         }
 
 
-#pragma warning disable CS3016 // Arrays as attribute arguments is not CLS-compliant
         [Theory]
         [InlineData(SecurityAlgorithms.EcdsaSha256Signature, SecurityAlgorithms.EcdsaSha256)]
         [InlineData(SecurityAlgorithms.EcdsaSha384Signature, SecurityAlgorithms.EcdsaSha384)]
@@ -243,7 +237,6 @@ namespace System.IdentityModel.Tokens.Jwt.Tests
         [InlineData(SecurityAlgorithms.RsaSha256Signature, SecurityAlgorithms.RsaSha256)]
         [InlineData(SecurityAlgorithms.RsaSha384Signature, SecurityAlgorithms.RsaSha384)]
         [InlineData(SecurityAlgorithms.RsaSha512Signature, SecurityAlgorithms.RsaSha512)]
-#pragma warning restore CS3016 // Arrays as attribute arguments is not CLS-compliant
         public void OutboundHeaderMappingCreateToken(string outboundAlgorithm, string expectedValue)
         {
             var handler = new JwtSecurityTokenHandler();
@@ -465,8 +458,7 @@ namespace System.IdentityModel.Tokens.Jwt.Tests
 
         private void RunClaimMappingVariation(JwtSecurityToken jwt, JwtSecurityTokenHandler tokenHandler, TokenValidationParameters validationParameters, IEnumerable<Claim> expectedClaims, string identityName)
         {
-            SecurityToken validatedToken;
-            ClaimsPrincipal cp = tokenHandler.ValidateToken(jwt.RawData, validationParameters, out validatedToken);
+            ClaimsPrincipal cp = tokenHandler.ValidateToken(jwt.RawData, validationParameters, out SecurityToken validatedToken);
             ClaimsIdentity identity = cp.Identity as ClaimsIdentity;
 
             Assert.True(IdentityComparer.AreEqual(identity.Claims, expectedClaims, new CompareContext { IgnoreType = true }), "identity.Claims != expectedClaims");
@@ -501,42 +493,211 @@ namespace System.IdentityModel.Tokens.Jwt.Tests
             }
         }
 
-        [Fact]
-        public void InstanceClaimFiltering()
+        [Theory, MemberData("InstanceInboundClaimFilteringTheoryData")]
+        public void InstanceInboundClaimFiltering(JwtTheoryData theoryData)
         {
-            // Setup
-            var jwtClaim = new Claim("jwtClaim", "claimValue");
-            var unwantedClaim = new Claim("unwantedClaim", "unwantedValue");
-            var handler = new JwtSecurityTokenHandler
-            {
-                InboundClaimFilter = new HashSet<string>
-                {
-                    "unwantedClaim"
-                }
-            };
+            var context = TestUtilities.WriteHeader("InstanceInboundClaimFiltering", theoryData);
 
-            // Test outgoing
-            var outgoingToken = handler.CreateJwtSecurityToken(subject: new ClaimsIdentity(new Claim[] { unwantedClaim, jwtClaim }));
-            var wasClaimMapped = System.Linq.Enumerable.Contains<Claim>(outgoingToken.Claims, jwtClaim, new ClaimComparer());
-            Assert.True(wasClaimMapped);
-
-            // Test incoming
-            var incomingToken = handler.CreateJwtSecurityToken(issuer: "Test Issuer", subject: new ClaimsIdentity(new Claim[] { jwtClaim, unwantedClaim }));
-            var validationParameters = new TokenValidationParameters
+            try
             {
-                RequireSignedTokens = false,
-                ValidateAudience = false,
-                ValidateIssuer = false
-            };
-            SecurityToken token;
-            var identity = handler.ValidateToken(incomingToken.RawData, validationParameters, out token);
-            Assert.False(identity.HasClaim(c => c.Type == "unwantedClaim"));
-            Assert.False(identity.HasClaim(c => c.Type == "jwtClaim"));
-            Assert.True(identity.HasClaim("internalClaim", "claimValue"));
+                var token = theoryData.TokenHandler.CreateEncodedJwt(theoryData.TokenDescriptor);
+                var principal = theoryData.TokenHandler.ValidateToken(token, theoryData.ValidationParameters, out SecurityToken jwtToken);
+                IdentityComparer.AreEqual(principal, theoryData.Principal, context);
+                theoryData.ExpectedException.ProcessNoException(context);
+            }
+            catch(Exception ex)
+            {
+                theoryData.ExpectedException.ProcessException(ex, context);
+            }
+
+            TestUtilities.AssertFailIfErrors(context);
         }
 
-        [Fact]
-        public void InstanceInboundClaimMapping()
+        public static TheoryData<JwtTheoryData> InstanceInboundClaimFilteringTheoryData
+        {
+            get
+            {
+                var identity = new ClaimsIdentity(
+                    new Claim[] { new Claim("jwtClaim", "claimValue", ClaimValueTypes.String, Default.Issuer),
+                                  new Claim("filteredClaim", "filteredClaimValue", ClaimValueTypes.String, Default.Issuer),
+                                  new Claim("iss", Default.Issuer, ClaimValueTypes.String, Default.Issuer) },
+                    TokenValidationParameters.DefaultAuthenticationType);
+
+                var identityFiltered = new ClaimsIdentity(
+                    new Claim[] { new Claim("jwtClaim", "claimValue", ClaimValueTypes.String, Default.Issuer),
+                                  new Claim("iss", Default.Issuer, ClaimValueTypes.String, Default.Issuer) },
+                    TokenValidationParameters.DefaultAuthenticationType);
+
+                var theoryData = new TheoryData<JwtTheoryData>
+                {
+                    new JwtTheoryData
+                    {
+                        First = true,
+                        Principal = new ClaimsPrincipal(identityFiltered),
+                        TestId = "Filtered ON",
+                        TokenHandler = new JwtSecurityTokenHandler
+                        {
+                            InboundClaimFilter = new HashSet<string>
+                            {
+                                "filteredClaim"
+                            },
+                            SetDefaultTimesOnTokenCreation = false
+                        },
+                        TokenDescriptor = new SecurityTokenDescriptor
+                        {
+                            Issuer = Default.Issuer,
+                            Subject = identity
+                        },
+                        ValidationParameters = new TokenValidationParameters
+                        {
+                            RequireSignedTokens = false,
+                            ValidateAudience = false,
+                            ValidateLifetime = false,
+                            ValidIssuer = Default.Issuer
+                        }
+                    },
+                    new JwtTheoryData
+                    {
+                        Principal = new ClaimsPrincipal(identity),
+                        TestId = "Filtered OFF",
+                        TokenDescriptor = new SecurityTokenDescriptor
+                        {
+                            Issuer = Default.Issuer,
+                            Subject = identity
+                        },
+                        TokenHandler = new JwtSecurityTokenHandler
+                        {
+                            SetDefaultTimesOnTokenCreation = false
+                        },
+                        ValidationParameters = new TokenValidationParameters
+                        {
+                            RequireSignedTokens = false,
+                            ValidateAudience = false,
+                            ValidateLifetime = false,
+                            ValidIssuer = Default.Issuer
+                        }
+                    }
+                };
+
+                return theoryData;
+            }
+        }
+
+        [Theory, MemberData("InstanceInboundClaimTypeMappingTheoryData")]
+        public void InstanceInboundClaimTypeMapping(JwtTheoryData theoryData)
+        {
+            var context = TestUtilities.WriteHeader("InstanceInboundClaimTypeMapping", theoryData);
+
+            try
+            {
+                var token = theoryData.TokenHandler.CreateEncodedJwt(theoryData.TokenDescriptor);
+                var principal = theoryData.TokenHandler.ValidateToken(token, theoryData.ValidationParameters, out SecurityToken jwtToken);
+                IdentityComparer.AreEqual(principal, theoryData.Principal, context);
+                theoryData.ExpectedException.ProcessNoException(context);
+            }
+            catch(Exception ex)
+            {
+                theoryData.ExpectedException.ProcessException(ex, context);
+            }
+
+            TestUtilities.AssertFailIfErrors(context);
+        }
+
+        public static TheoryData<JwtTheoryData> InstanceInboundClaimTypeMappingTheoryData
+        {
+            get
+            {
+                var identity = new ClaimsIdentity(
+                    new Claim[] { new Claim("jwtClaim", "claimValue", ClaimValueTypes.String, Default.Issuer),
+                                  new Claim("iss", Default.Issuer, ClaimValueTypes.String, Default.Issuer) },
+                    TokenValidationParameters.DefaultAuthenticationType);
+
+                var mappedClaim = new Claim("mappedJwtClaim", "claimValue", ClaimValueTypes.String, Default.Issuer);
+                mappedClaim.Properties.Add(JwtSecurityTokenHandler.ShortClaimTypeProperty, "jwtClaim");
+                var identityWithMappedClaims = new ClaimsIdentity(
+                    new Claim[] { mappedClaim,
+                                  new Claim("iss", Default.Issuer, ClaimValueTypes.String, Default.Issuer) },
+                    TokenValidationParameters.DefaultAuthenticationType);
+
+                var theoryData = new TheoryData<JwtTheoryData>
+                {
+                    new JwtTheoryData
+                    {
+                        First = true,
+                        Principal = new ClaimsPrincipal(identityWithMappedClaims),
+                        TestId = "Mapping ON",
+                        TokenHandler = new JwtSecurityTokenHandler
+                        {
+                            InboundClaimTypeMap = new Dictionary<string, string>
+                            {
+                                { "jwtClaim", "mappedJwtClaim" }
+                            },
+                            SetDefaultTimesOnTokenCreation = false
+                        },
+                        TokenDescriptor = new SecurityTokenDescriptor
+                        {
+                            Issuer = Default.Issuer,
+                            Subject = identity
+                        },
+                        ValidationParameters = new TokenValidationParameters
+                        {
+                            RequireSignedTokens = false,
+                            ValidateAudience = false,
+                            ValidateLifetime = false,
+                            ValidIssuer = Default.Issuer
+                        }
+                    },
+                    new JwtTheoryData
+                    {
+                        Principal = new ClaimsPrincipal(identity),
+                        TestId = "MapClaimTypes false",
+                        TokenDescriptor = new SecurityTokenDescriptor
+                        {
+                            Issuer = Default.Issuer,
+                            Subject = identity
+                        },
+                        TokenHandler = new JwtSecurityTokenHandler
+                        {
+                            MapOutboundClaimTypes = false,
+                            SetDefaultTimesOnTokenCreation = false
+                        },
+                        ValidationParameters = new TokenValidationParameters
+                        {
+                            RequireSignedTokens = false,
+                            ValidateAudience = false,
+                            ValidateLifetime = false,
+                            ValidIssuer = Default.Issuer
+                        }
+                    },
+                    new JwtTheoryData
+                    {
+                        Principal = new ClaimsPrincipal(identity),
+                        TestId = "Mapping With Empty Dictionary",
+                        TokenDescriptor = new SecurityTokenDescriptor
+                        {
+                            Issuer = Default.Issuer,
+                            Subject = identity
+                        },
+                        TokenHandler = new JwtSecurityTokenHandler
+                        {
+                            OutboundClaimTypeMap = new Dictionary<string, string>(),
+                            SetDefaultTimesOnTokenCreation = false
+                        },
+                        ValidationParameters = new TokenValidationParameters
+                        {
+                            RequireSignedTokens = false,
+                            ValidateAudience = false,
+                            ValidateLifetime = false,
+                            ValidIssuer = Default.Issuer
+                        }
+                    }
+                };
+
+                return theoryData;
+            }
+        }
+
+        public void IInstanceInboundClaimMappingTheoryData()
         {
             // testing if one handler overrides instance claim type map of another
             JwtSecurityTokenHandler handler1 = new JwtSecurityTokenHandler();
@@ -579,7 +740,7 @@ namespace System.IdentityModel.Tokens.Jwt.Tests
             Assert.True(identity.HasClaim("internalClaim", "claimValue"));
         }
 
-                [Fact]
+        [Fact]
         public void InstanceOutboundClaimMapping()
         {
             // testing if one handler overrides instance claim type map of another
@@ -623,6 +784,118 @@ namespace System.IdentityModel.Tokens.Jwt.Tests
             Assert.True(identity.HasClaim("internalClaim", "claimValue"));
         }
 
+        [Theory, MemberData("InstanceOutboundClaimTypeMappingTheoryData")]
+        public void InstanceOutboundClaimTypeMapping(JwtTheoryData theoryData)
+        {
+            var context = TestUtilities.WriteHeader("InstanceOutboundClaimTypeMapping", theoryData);
+
+            try
+            {
+                var token = theoryData.TokenHandler.CreateEncodedJwt(theoryData.TokenDescriptor);
+                var principal = theoryData.TokenHandler.ValidateToken(token, theoryData.ValidationParameters, out SecurityToken jwtToken);
+                IdentityComparer.AreEqual(principal, theoryData.Principal, context);
+                theoryData.ExpectedException.ProcessNoException(context);
+            }
+            catch(Exception ex)
+            {
+                theoryData.ExpectedException.ProcessException(ex, context);
+            }
+
+            TestUtilities.AssertFailIfErrors(context);
+        }
+
+        public static TheoryData<JwtTheoryData> InstanceOutboundClaimTypeMappingTheoryData
+        {
+            get
+            {
+                var identity = new ClaimsIdentity(
+                    new Claim[] { new Claim("jwtClaim", "claimValue", ClaimValueTypes.String, Default.Issuer),
+                                  new Claim("iss", Default.Issuer, ClaimValueTypes.String, Default.Issuer) },
+                    TokenValidationParameters.DefaultAuthenticationType);
+
+                var identityWithMappedClaims = new ClaimsIdentity(
+                    new Claim[] { new Claim("mappedJwtClaim", "claimValue", ClaimValueTypes.String, Default.Issuer),
+                                  new Claim("iss", Default.Issuer, ClaimValueTypes.String, Default.Issuer) },
+                    TokenValidationParameters.DefaultAuthenticationType);
+
+                var theoryData = new TheoryData<JwtTheoryData>
+                {
+                    new JwtTheoryData
+                    {
+                        First = true,
+                        Principal = new ClaimsPrincipal(identityWithMappedClaims),
+                        TestId = "Mapping ON",
+                        TokenHandler = new JwtSecurityTokenHandler
+                        {
+                            OutboundClaimTypeMap = new Dictionary<string, string>
+                            {
+                                { "jwtClaim", "mappedJwtClaim" }
+                            },
+                            SetDefaultTimesOnTokenCreation = false
+                        },
+                        TokenDescriptor = new SecurityTokenDescriptor
+                        {
+                            Issuer = Default.Issuer,
+                            Subject = identity
+                        },
+                        ValidationParameters = new TokenValidationParameters
+                        {
+                            RequireSignedTokens = false,
+                            ValidateAudience = false,
+                            ValidateLifetime = false,
+                            ValidIssuer = Default.Issuer
+                        }
+                    },
+                    new JwtTheoryData
+                    {
+                        Principal = new ClaimsPrincipal(identity),
+                        TestId = "MapClaimTypes false",
+                        TokenDescriptor = new SecurityTokenDescriptor
+                        {
+                            Issuer = Default.Issuer,
+                            Subject = identity
+                        },
+                        TokenHandler = new JwtSecurityTokenHandler
+                        {
+                            MapOutboundClaimTypes = false,
+                            SetDefaultTimesOnTokenCreation = false
+                        },
+                        ValidationParameters = new TokenValidationParameters
+                        {
+                            RequireSignedTokens = false,
+                            ValidateAudience = false,
+                            ValidateLifetime = false,
+                            ValidIssuer = Default.Issuer
+                        }
+                    },
+                    new JwtTheoryData
+                    {
+                        Principal = new ClaimsPrincipal(identity),
+                        TestId = "Mapping With Empty Dictionary",
+                        TokenDescriptor = new SecurityTokenDescriptor
+                        {
+                            Issuer = Default.Issuer,
+                            Subject = identity
+                        },
+                        TokenHandler = new JwtSecurityTokenHandler
+                        {
+                            InboundClaimTypeMap = new Dictionary<string, string>(),
+                            SetDefaultTimesOnTokenCreation = false
+                        },
+                        ValidationParameters = new TokenValidationParameters
+                        {
+                            RequireSignedTokens = false,
+                            ValidateAudience = false,
+                            ValidateLifetime = false,
+                            ValidIssuer = Default.Issuer
+                        }
+                    }
+                };
+
+                return theoryData;
+            }
+        }
+
         [Fact]
         public void Defaults()
         {
@@ -656,9 +929,7 @@ namespace System.IdentityModel.Tokens.Jwt.Tests
             TestUtilities.ValidateTokenReplay(Default.AsymmetricJwt, new JwtSecurityTokenHandler(), Default.AsymmetricSignTokenValidationParameters);
         }
 
-#pragma warning disable CS3016 // Arrays as attribute arguments is not CLS-compliant
         [Theory, MemberData(nameof(SegmentTheoryData))]
-#pragma warning restore CS3016 // Arrays as attribute arguments is not CLS-compliant
         public void SegmentRead(JwtTheoryData theoryData)
         {
             try
@@ -672,9 +943,7 @@ namespace System.IdentityModel.Tokens.Jwt.Tests
             }
         }
 
-#pragma warning disable CS3016 // Arrays as attribute arguments is not CLS-compliant
         [Theory, MemberData(nameof(SegmentTheoryData))]
-#pragma warning restore CS3016 // Arrays as attribute arguments is not CLS-compliant
         public void SegmentCanRead(JwtTheoryData theoryData)
         {
             Assert.Equal(theoryData.CanRead, theoryData.TokenHandler.CanReadToken(theoryData.Token));
@@ -692,9 +961,7 @@ namespace System.IdentityModel.Tokens.Jwt.Tests
             return theoryData;
         }
 
-#pragma warning disable CS3016 // Arrays as attribute arguments is not CLS-compliant
         [Theory, MemberData("ValidateAudienceTheoryData")]
-#pragma warning restore CS3016 // Arrays as attribute arguments is not CLS-compliant
         public void ValidateAudience(JwtTheoryData theoryData)
         {
             TestUtilities.WriteHeader($"{this}.ValidateAudience", theoryData);
@@ -841,13 +1108,10 @@ namespace System.IdentityModel.Tokens.Jwt.Tests
             };
         }
 
-#pragma warning disable CS3016 // Arrays as attribute arguments is not CLS-compliant
         [Theory, MemberData("ValidateIssuerTheoryData")]
-#pragma warning restore CS3016 // Arrays as attribute arguments is not CLS-compliant
         public void ValidateIssuer(JwtTheoryData theoryData)
         {
             TestUtilities.WriteHeader($"{this}.ValidateIssuer", theoryData);
-
             TestUtilities.ValidateToken(theoryData.Token, theoryData.ValidationParameters, theoryData.TokenHandler, theoryData.ExpectedException);
         }
 
@@ -934,10 +1198,7 @@ namespace System.IdentityModel.Tokens.Jwt.Tests
             }
         }
 
-
-#pragma warning disable CS3016 // Arrays as attribute arguments is not CLS-compliant
         [Theory, MemberData("TokenReplayValidationTheoryData")]
-#pragma warning restore CS3016 // Arrays as attribute arguments is not CLS-compliant
         public void TokenReplayValidation(TokenReplayTheoryData theoryData)
         {
             TestUtilities.WriteHeader($"{this}.TokenReplayValidation", theoryData);
@@ -994,9 +1255,7 @@ namespace System.IdentityModel.Tokens.Jwt.Tests
             };
         }
 
-#pragma warning disable CS3016 // Arrays as attribute arguments is not CLS-compliant
         [Theory, MemberData("ValidateLifetimeTheoryData")]
-#pragma warning restore CS3016 // Arrays as attribute arguments is not CLS-compliant
         public void ValidateLifetime(JwtTheoryData theoryData)
         {
             TestUtilities.WriteHeader($"{this}.ValidateLifetime", theoryData);
@@ -1052,13 +1311,10 @@ namespace System.IdentityModel.Tokens.Jwt.Tests
             };
         }
 
-#pragma warning disable CS3016 // Arrays as attribute arguments is not CLS-compliant
         [Theory, MemberData("ValidateSignatureTheoryData")]
-#pragma warning restore CS3016 // Arrays as attribute arguments is not CLS-compliant
         public void ValidateSignature(JwtTheoryData theoryData)
         {
             TestUtilities.WriteHeader($"{this}.ValidateSignature", theoryData);
-
             TestUtilities.ValidateToken(theoryData.Token, theoryData.ValidationParameters, theoryData.TokenHandler, theoryData.ExpectedException);
         }
 
@@ -1230,13 +1486,10 @@ namespace System.IdentityModel.Tokens.Jwt.Tests
             };
         }
 
-#pragma warning disable CS3016 // Arrays as attribute arguments is not CLS-compliant
         [Theory, MemberData("ValidateTokenTheoryData")]
-#pragma warning restore CS3016 // Arrays as attribute arguments is not CLS-compliant
         public void ValidateToken(JwtTheoryData theoryData)
         {
             TestUtilities.WriteHeader($"{this}.ValidateToken", theoryData);
-
             TestUtilities.ValidateToken(theoryData.Token, theoryData.ValidationParameters, theoryData.TokenHandler, theoryData.ExpectedException);
         }
 
@@ -1312,9 +1565,7 @@ namespace System.IdentityModel.Tokens.Jwt.Tests
             }
         }
 
-#pragma warning disable CS3016 // Arrays as attribute arguments is not CLS-compliant
         [Theory, MemberData(nameof(WriteTokenTheoryData))]
-#pragma warning restore CS3016 // Arrays as attribute arguments is not CLS-compliant
         public void WriteToken(JwtTheoryData theoryData)
         {
             try
@@ -1439,9 +1690,7 @@ namespace System.IdentityModel.Tokens.Jwt.Tests
             return theoryData;
         }
 
-#pragma warning disable CS3016 // Arrays as attribute arguments is not CLS-compliant
         [Theory, MemberData(nameof(KeyWrapTokenTheoryData))]
-#pragma warning restore CS3016 // Arrays as attribute arguments is not CLS-compliant
         public void KeyWrapTokenTest(KeyWrapTokenTheoryData theoryData)
         {
             TestUtilities.WriteHeader($"{this}.KeyWrapTokenTest", theoryData);
@@ -1507,9 +1756,7 @@ namespace System.IdentityModel.Tokens.Jwt.Tests
             return theoryData;
         }
 
-#pragma warning disable CS3016 // Arrays as attribute arguments is not CLS-compliant
         [Theory, MemberData(nameof(ParametersCheckTheoryData))]
-#pragma warning restore CS3016 // Arrays as attribute arguments is not CLS-compliant
         public void ParametersCheckTest(ParametersCheckTheoryData theoryData)
         {
             TestUtilities.WriteHeader($"{this}.ParametersCheckTest", theoryData);
@@ -1517,7 +1764,7 @@ namespace System.IdentityModel.Tokens.Jwt.Tests
             var handler = new JwtSecurityTokenHandlerCustom();
             try
             {
-                handler.CreateClaimsIdentityCustom(theoryData.token, "issuer", theoryData.validationParameters);
+                handler.CreateClaimsIdentityCustom(theoryData.Token, "issuer", theoryData.ValidationParameters);
                 theoryData.ExpectedException.ProcessNoException();
             }
             catch(Exception ex)
@@ -1533,13 +1780,13 @@ namespace System.IdentityModel.Tokens.Jwt.Tests
                 new ParametersCheckTheoryData
                 {
                     TestId = "Missing token",
-                    token = null,
+                    Token = null,
                     ExpectedException = ExpectedException.ArgumentNullException("IDX10000")
                 },
                 new ParametersCheckTheoryData
                 {
                     TestId = "Missing validationParameters",
-                    validationParameters = null,
+                    ValidationParameters = null,
                     ExpectedException = ExpectedException.ArgumentNullException("IDX10000")
                 }
             };
@@ -1568,7 +1815,10 @@ namespace System.IdentityModel.Tokens.Jwt.Tests
 
     public class ParametersCheckTheoryData : TheoryDataBase
     {
-        public JwtSecurityToken token { get; set; } = new JwtSecurityToken();
-        public TokenValidationParameters validationParameters { get; set; } = new TokenValidationParameters();
+        public JwtSecurityToken Token { get; set; } = new JwtSecurityToken();
+
+        public TokenValidationParameters ValidationParameters { get; set; } = new TokenValidationParameters();
     }
+
+    #pragma warning restore CS3016 // Arrays as attribute arguments is not CLS-compliant
 }
