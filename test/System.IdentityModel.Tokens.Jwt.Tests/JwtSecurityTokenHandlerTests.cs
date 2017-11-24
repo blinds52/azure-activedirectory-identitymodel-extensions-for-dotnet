@@ -31,6 +31,7 @@ using System.Security.Claims;
 using Microsoft.IdentityModel.Tests;
 using Microsoft.IdentityModel.Tokens;
 using Xunit;
+using System.Security.Cryptography;
 
 #pragma warning disable CS3016 // Arrays as attribute arguments is not CLS-compliant
 
@@ -1256,6 +1257,29 @@ namespace System.IdentityModel.Tokens.Jwt.Tests
             TestUtilities.WriteHeader($"{this}.ValidateToken", theoryData);
 
             TestUtilities.ValidateToken(theoryData.Token, theoryData.ValidationParameters, theoryData.TokenHandler, theoryData.ExpectedException);
+        }
+
+        [Fact]
+        public void ValidateMySignature()
+        {
+            var e = Base64UrlEncoder.DecodeBytes("AQAB");
+            var n = Base64UrlEncoder.DecodeBytes("AJSn-hXW9Zzz9ORBKIC9Oi6wzM4zhqwHaKW2vZAqjOeLlpUW7zXwyk4tkivwsydPNaWUm-9oDlEAB2lsQJv7jwWNsF7SGx5R03kenC-cf8Nbxlxwa-Tncjo6uruEsK_Vke244KiSCHP8BOuHI-r5CS0x9edFLgesoYlPPFoJxTs5");
+            var key = new RsaSecurityKey(new RSAParameters { Exponent = e, Modulus = n })
+            {
+                KeyId = "d0ec514a32b6f88c0abd12a2840699bdd3deba9d"
+            };
+            var token = "eyJ4NXQiOiJObUptT0dVeE16WmxZak0yWkRSaE5UWmxZVEExWXpkaFpUUmlPV0UwTldJMk0ySm1PVGMxWkEiLCJraWQiOiJkMGVjNTE0YTMyYjZmODhjMGFiZDEyYTI4NDA2OTliZGQzZGViYTlkIiwiYWxnIjoiUlMyNTYifQ.eyJhdF9oYXNoIjoiemdhTWtaNEN6WTcxalRfUTlBTXBnQSIsImFjciI6InVybjptYWNlOmluY29tbW9uOmlhcDpzaWx2ZXIiLCJzdWIiOiJXU08yLk9SR1wvYWRtaW5AY2FyYm9uLnN1cGVyIiwiYXVkIjpbIjlIdTRQMDBJUnVpTHk4S3lidXprZjZuNGttb2EiXSwiYXpwIjoiOUh1NFAwMElSdWlMeThLeWJ1emtmNm40a21vYSIsInJvbGVzIjoiSW50ZXJuYWxcL2V2ZXJ5b25lLFdTTzIuT1JHXC9hZG1pbixBcHBsaWNhdGlvblwvbG9jYWxob3N0U2VydmljZSIsImlzcyI6Imh0dHBzOlwvXC9sb2NhbGhvc3Q6OTQ0M1wvb2F1dGgyXC90b2tlbiIsImV4cCI6MTUxMjU2MTE5NSwiaWF0IjoxNTEwODc3ODU1fQ.kabTcKZB7a-YaQ4C-8IAeDxAE_Ppr_DhnD42YdqR1fZpMatc-bNSP8rt1dL85KnbzDqkMm39KfNQqZp_5QSR0-EXDIs_gEAJjGW3-lvUF58KQKwMZVtcObueA9-UWUVdJhaB5sbzq8TG6GduftM-_NQMYFB6TcQzvb4IEtrzW0I";
+            var jwt = new JwtSecurityToken(token);
+
+            var parameters = new TokenValidationParameters()
+            {
+                IssuerSigningKey = key,
+
+            };
+            var claimsPrincipal = new JwtSecurityTokenHandler().ValidateToken(jwt.RawData, parameters, out SecurityToken securityToken);
+
+            var isValid = claimsPrincipal.Identity.IsAuthenticated;
+            Assert.True(isValid);
         }
 
         public static TheoryData<JwtTheoryData> ValidateTokenTheoryData
