@@ -48,6 +48,9 @@ namespace Microsoft.IdentityModel.Tokens
         /// <param name="rsaParameters"><see cref="RSAParameters"/></param>
         public RsaSecurityKey(RSAParameters rsaParameters)
         {
+#if (NET45 || NET451)
+            rsaParameters = RemoveLeadingZero(rsaParameters);
+#endif
             // must have modulus and exponent otherwise the crypto operations fail later
             if (rsaParameters.Modulus == null || rsaParameters.Exponent == null)
                 throw LogHelper.LogExceptionMessage(new ArgumentException(LogHelper.FormatInvariant(LogMessages.IDX10700, rsaParameters.ToString())));
@@ -64,7 +67,29 @@ namespace Microsoft.IdentityModel.Tokens
         {
             if (rsa == null)
                 throw LogHelper.LogArgumentNullException("rsa");
-
+#if (NET45 || NET451)
+            if (rsa as RSACryptoServiceProvider != null)
+            {
+                try
+                {
+                    var parameters = rsa.ExportParameters(true);
+                    parameters = RemoveLeadingZero(parameters);
+                    rsa.ImportParameters(parameters);
+                }
+                catch (Exception)
+                {
+                    try
+                    {
+                        var parameters = rsa.ExportParameters(false);
+                        parameters = RemoveLeadingZero(parameters);
+                        rsa.ImportParameters(parameters);
+                    }
+                    catch (Exception)
+                    {
+                    }
+                }
+            }
+#endif
             Rsa = rsa;
         }
 

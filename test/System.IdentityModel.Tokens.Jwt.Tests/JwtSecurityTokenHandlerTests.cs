@@ -1274,7 +1274,9 @@ namespace System.IdentityModel.Tokens.Jwt.Tests
             var parameters = new TokenValidationParameters()
             {
                 IssuerSigningKey = key,
-
+                ValidateAudience = false,
+                ValidateIssuer = false,
+                ValidateLifetime = false
             };
             var claimsPrincipal = new JwtSecurityTokenHandler().ValidateToken(jwt.RawData, parameters, out SecurityToken securityToken);
 
